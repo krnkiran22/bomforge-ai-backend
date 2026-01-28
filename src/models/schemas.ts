@@ -50,7 +50,7 @@ export const Upload: Model<IUpload> = mongoose.model<IUpload>('Upload', UploadSc
 // CONVERSION SCHEMA
 // ==========================================
 export interface IBOMItem {
-  id: string;
+  id?: string;
   partNumber: string;
   description: string;
   quantity: number;
@@ -216,6 +216,7 @@ export interface IFeedback extends Document {
     reasoning: string;
   }[];
   shouldLearn: boolean;
+  processed: boolean;
   submittedAt: Date;
 }
 
@@ -242,6 +243,10 @@ const FeedbackSchema = new Schema<IFeedback>({
   shouldLearn: {
     type: Boolean,
     default: true
+  },
+  processed: {
+    type: Boolean,
+    default: false
   },
   submittedAt: {
     type: Date,

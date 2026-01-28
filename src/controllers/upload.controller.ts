@@ -26,7 +26,7 @@ export const uploadFile = async (req: Request, res: Response) => {
 
     logger.info(`File uploaded successfully: ${file.originalname} (ID: ${upload.id})`);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: {
         uploadId: upload.id,
@@ -39,7 +39,7 @@ export const uploadFile = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('File upload error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || 'File upload failed',
     });

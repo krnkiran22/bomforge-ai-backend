@@ -7,6 +7,7 @@ import convertRoutes from './routes/convert.routes';
 import historyRoutes from './routes/history.routes';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import logger from './utils/logger';
+import knowledgeService from './services/knowledge.service';
 
 // Load environment variables
 dotenv.config();
@@ -23,13 +24,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Request logging
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   logger.info(`${req.method} ${req.path}`);
   next();
 });
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   const dbStatus = Database.getConnectionStatus();
   
   res.status(dbStatus ? 200 : 503).json({
@@ -56,12 +57,25 @@ const startServer = async () => {
     // Connect to MongoDB
     await Database.connect();
     
+    // Seed initial knowledge base if enabled
+    if (process.env.SEED_KNOWLEDGE === 'true') {
+      logger.info('🌱 Seeding knowledge base...');
+      await knowledgeService.seedInitialKnowledge();
+    }
+    
     // Start Express server
     app.listen(PORT, () => {
       logger.info(`🚀 BOMForge AI Backend running on port ${PORT}`);
       logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`🔗 API: http://localhost:${PORT}`);
       logger.info(`📊 Health check: http://localhost:${PORT}/health`);
+      
+      // Multi-Model Status
+      if (process.env.USE_MULTI_MODEL === 'true') {
+        logger.info('🤖 Multi-Model AI: ENABLED (5 specialized models)');
+      } else {
+        logger.info('🤖 Multi-Model AI: DISABLED (using single model)');
+      }
       
       if (!process.env.GROQ_API_KEY) {
         logger.warn('⚠️  GROQ_API_KEY not configured. AI features will not work.');

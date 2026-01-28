@@ -2,16 +2,28 @@ import OpenAI from "openai";
 import { BOMItem, MBOMItem, ConversionResult } from "../types";
 
 class GroqService {
-  private client: OpenAI;
+  private client: OpenAI | null = null;
 
-  constructor() {
-    this.client = new OpenAI({
-      apiKey: process.env.GROQ_API_KEY,
-      baseURL: "https://api.groq.com/openai/v1",
-    });
+  private getClient(): OpenAI {
+    if (!this.client) {
+      const apiKey = process.env.GROQ_API_KEY;
+      
+      if (!apiKey) {
+        throw new Error('GROQ_API_KEY environment variable is not set');
+      }
+
+      this.client = new OpenAI({
+        apiKey: apiKey,
+        baseURL: process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1",
+      });
+
+      console.log('✅ Groq AI service initialized');
+    }
+    return this.client;
   }
 
   async convertEBOMToMBOM(ebomItems: BOMItem[]): Promise<ConversionResult> {
+    const client = this.getClient();
     try {
       const prompt = `You are an expert manufacturing engineer specializing in Bill of Materials (BOM) transformation. Your task is to convert an Engineering BOM (eBOM) into a Manufacturing BOM (mBOM).
 
@@ -110,7 +122,7 @@ IMPORTANT:
 - Explain alternatives for lower-confidence decisions
 - Maintain parent-child relationships using children array`;
 
-      const response = await this.client.chat.completions.create({
+      const response = await client.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.3,
@@ -176,7 +188,8 @@ ${JSON.stringify(convertedItem, null, 2)}
 
 Provide a clear, concise explanation for an engineer reviewing this change.`;
 
-      const response = await this.client.chat.completions.create({
+      const client = this.getClient();
+      const response = await client.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.4,

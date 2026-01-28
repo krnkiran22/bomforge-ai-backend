@@ -2,12 +2,14 @@ import multer from 'multer';
 import path from 'path';
 import { sanitizeFilename } from '../utils/helpers';
 
+const uploadDir = process.env.UPLOAD_DIR || './uploads';
+
 // Storage configuration
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+  destination: (_req, _file, cb) => {
+    cb(null, uploadDir);
   },
-  filename: (req, file, cb) => {
+  filename: (_req, file, cb) => {
     const timestamp = Date.now();
     const sanitized = sanitizeFilename(file.originalname);
     const ext = path.extname(sanitized);
@@ -17,7 +19,7 @@ const storage = multer.diskStorage({
 });
 
 // File filter
-const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedExtensions = ['.xlsx', '.xls', '.csv'];
   const ext = path.extname(file.originalname).toLowerCase();
   

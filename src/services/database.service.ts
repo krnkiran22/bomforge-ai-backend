@@ -195,7 +195,7 @@ class DatabaseService {
         .lean();
 
       return {
-        conversions: conversions as IConversion[],
+        conversions: conversions as any as IConversion[],
         pagination: {
           currentPage: page,
           totalPages,

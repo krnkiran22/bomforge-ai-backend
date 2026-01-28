@@ -10,9 +10,9 @@ export const getConversionHistory = async (req: Request, res: Response) => {
 
     const result = await databaseService.getConversionHistory(page, limit, search);
 
-    const formattedData = result.conversions.map(conversion => ({
+    const formattedData = result.conversions.map((conversion: any) => ({
       conversionId: conversion.id,
-      fileName: conversion.upload.originalName,
+      fileName: conversion.uploadId?.originalName || 'Unknown',
       status: conversion.status,
       ebomPartCount: conversion.ebomPartCount,
       mbomPartCount: conversion.mbomPartCount || 0,
@@ -21,14 +21,14 @@ export const getConversionHistory = async (req: Request, res: Response) => {
       createdAt: conversion.createdAt,
     }));
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: formattedData,
       pagination: result.pagination,
     });
   } catch (error: any) {
     logger.error('Get conversion history error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || 'Failed to get conversion history',
     });
@@ -51,13 +51,13 @@ export const deleteConversion = async (req: Request, res: Response) => {
 
     logger.info(`Deleted conversion ${conversionId}`);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Conversion deleted successfully',
     });
   } catch (error: any) {
     logger.error('Delete conversion error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || 'Failed to delete conversion',
     });

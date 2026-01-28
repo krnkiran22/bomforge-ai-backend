@@ -1,7 +1,10 @@
 import { Request, Response } from 'express';
 import databaseService from '../services/database.service';
 import parserService from '../services/parser.service';
-import groqService from '../services/groq.service';
+import aiService from '../services/ai.service';
+import multiModelService from '../services/multi-model.service';
+import learningService from '../services/learning.service';
+import knowledgeService from '../services/knowledge.service';
 import logger from '../utils/logger';
 import { calculateTimeTaken, delay } from '../utils/helpers';
 
@@ -43,7 +46,10 @@ export const startConversion = async (req: Request, res: Response) => {
     const conversion = await databaseService.createConversion({
       uploadId,
       status: 'processing',
-      ebomData: bomItems,
+      ebomData: {
+        items: bomItems,
+        totalParts: bomItems.length
+      },
       ebomPartCount: bomItems.length,
     });
 
@@ -53,7 +59,7 @@ export const startConversion = async (req: Request, res: Response) => {
       databaseService.saveConversionError(conversion.id, error.message);
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: {
         conversionId: conversion.id,
@@ -68,7 +74,7 @@ export const startConversion = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('Conversion start error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || 'Failed to start conversion',
     });
@@ -95,9 +101,27 @@ async function processConversion(conversionId: string, ebomItems: any[]) {
       30,
       'analysis'
     );
-    logger.info(`Converting BOM with ${ebomItems.length} items using Groq AI`);
+    logger.info(`Converting BOM with ${ebomItems.length} items using AI`);
 
-    const conversionResult = await groqService.convertEBOMToMBOM(ebomItems);
+    // OPTION 1: Use Multi-Model Architecture (5 specialized AI models)
+    // Uncomment this to use the advanced 5-model system with Ollama
+    const useMultiModel = process.env.USE_MULTI_MODEL === 'true';
+    
+    let conversionResult;
+    
+    if (useMultiModel) {
+      logger.info('🚀 Using Multi-Model AI (5 specialized models)');
+      conversionResult = await multiModelService.convertWithMultiModel(ebomItems);
+    } else {
+      // OPTION 2: Use simple single AI service (backward compatible)
+      logger.info('Using single AI service');
+      conversionResult = await aiService.convertEBOMToMBOM(ebomItems, {
+        // Options can be added here
+        // preferOllama: true,  // Force Ollama
+        // forceGroq: true,     // Force Groq
+        // useChunking: true    // Force chunking
+      });
+    }
 
     // Stage 3: Generation
     await databaseService.updateConversionStatus(
@@ -124,7 +148,7 @@ async function processConversion(conversionId: string, ebomItems: any[]) {
       { items: conversionResult.mbomItems },
       {
         overallAssessment: conversionResult.overallAssessment,
-        itemExplanations: conversionResult.mbomItems.map(item => ({
+        itemExplanations: conversionResult.mbomItems.map((item: any) => ({
           itemId: item.id,
           partNumber: item.partNumber,
           changeType: item.changeType,
@@ -166,7 +190,7 @@ export const getConversionStatus = async (req: Request, res: Response) => {
       validation: conversion.progress >= 90 ? (conversion.progress >= 100 ? 'completed' : 'in_progress') : 'pending',
     };
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: {
         conversionId: conversion.id,
@@ -182,7 +206,7 @@ export const getConversionStatus = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('Get conversion status error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || 'Failed to get conversion status',
     });
@@ -217,15 +241,15 @@ export const getBOMData = async (req: Request, res: Response) => {
     const modifiedItems = mbomItems.filter((i: any) => i.changeType === 'modified').length;
     const groupedItems = mbomItems.filter((i: any) => i.changeType === 'grouped').length;
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: {
         conversionId: conversion.id,
-        ebom: {
+        ebomData: {
           items: Array.isArray(ebomData) ? ebomData : ebomData.items || [],
           totalParts: conversion.ebomPartCount,
         },
-        mbom: {
+        mbomData: {
           items: mbomItems,
           totalParts: conversion.mbomPartCount || 0,
           addedItems,
@@ -237,7 +261,7 @@ export const getBOMData = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('Get BOM data error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || 'Failed to get BOM data',
     });
@@ -265,7 +289,7 @@ export const getExplanation = async (req: Request, res: Response) => {
 
     const explanationData = conversion.explanationData as any;
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: {
         conversionId: conversion.id,
@@ -274,7 +298,7 @@ export const getExplanation = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('Get explanation error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || 'Failed to get explanation',
     });
@@ -312,7 +336,7 @@ export const saveBOMEdits = async (req: Request, res: Response) => {
 
     logger.info(`Saved ${changes.length} edits for conversion ${conversionId}`);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Changes saved successfully',
       data: {
@@ -321,7 +345,7 @@ export const saveBOMEdits = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('Save BOM edits error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || 'Failed to save changes',
     });
@@ -339,27 +363,96 @@ export const submitFeedback = async (req: Request, res: Response) => {
       });
     }
 
-    // Save feedback to database
-    await databaseService.createFeedback({
+    // Process feedback with learning service
+    const learningResult = await learningService.processFeedback({
       conversionId,
       corrections,
-      shouldLearn: shouldLearn !== false,
+      shouldLearn: shouldLearn !== false
     });
 
-    logger.info(`Feedback recorded for conversion ${conversionId}`);
+    logger.info(`Feedback processed for conversion ${conversionId}: ${learningResult.learnedItems} items learned`);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: 'Feedback recorded. AI will learn from this correction.',
+      message: learningResult.message,
       data: {
         learningQueued: shouldLearn !== false,
+        learnedItems: learningResult.learnedItems
       },
     });
   } catch (error: any) {
     logger.error('Submit feedback error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message || 'Failed to submit feedback',
+    });
+  }
+};
+
+/**
+ * Get learning statistics
+ */
+export const getLearningStats = async (_req: Request, res: Response) => {
+  try {
+    const stats = await learningService.getLearningStats();
+    
+    return res.status(200).json({
+      success: true,
+      data: stats
+    });
+  } catch (error: any) {
+    logger.error('Get learning stats error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get learning stats'
+    });
+  }
+};
+
+/**
+ * Get multi-model status
+ */
+export const getMultiModelStatus = async (_req: Request, res: Response) => {
+  try {
+    const status = await multiModelService.getModelStatus();
+    const knowledgeStats = await knowledgeService.getLearningStats();
+    
+    return res.status(200).json({
+      success: true,
+      data: {
+        models: status,
+        knowledge: knowledgeStats,
+        multiModelEnabled: process.env.USE_MULTI_MODEL === 'true'
+      }
+    });
+  } catch (error: any) {
+    logger.error('Get multi-model status error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get model status'
+    });
+  }
+};
+
+/**
+ * Trigger manual retraining
+ */
+export const triggerRetraining = async (_req: Request, res: Response) => {
+  try {
+    logger.info('Manual retraining triggered');
+    
+    const result = await learningService.performBatchRetraining();
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Retraining complete',
+      data: result
+    });
+  } catch (error: any) {
+    logger.error('Retraining error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Retraining failed'
     });
   }
 };
