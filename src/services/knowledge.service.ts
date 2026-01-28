@@ -61,7 +61,8 @@ KnowledgeSchema.index({ 'context.partType': 1, confidence: -1 });
 KnowledgeSchema.index({ 'context.material': 1, confidence: -1 });
 KnowledgeSchema.index({ usage_count: -1 });
 
-const Knowledge = mongoose.model('Knowledge', KnowledgeSchema);
+// Use existing model if already compiled (fixes hot-reload issue)
+const Knowledge = mongoose.models.Knowledge || mongoose.model('Knowledge', KnowledgeSchema);
 
 interface KnowledgeRecommendation {
   workCenter?: string;

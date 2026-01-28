@@ -49,10 +49,10 @@ Respond ONLY with valid JSON in this exact format:
 
     try {
       const response = await axios.post(
-        `${this.ollamaUrl}/api/chat`,
+        `${this.ollamaUrl}/api/generate`,
         {
           model: this.model,
-          messages: [{ role: 'user', content: prompt }],
+          prompt: prompt,
           stream: false,
           format: 'json',
           options: {
@@ -68,7 +68,7 @@ Respond ONLY with valid JSON in this exact format:
         }
       );
 
-      const result = JSON.parse(response.data.message.content);
+      const result = JSON.parse(response.data.response);
       
       // Validate and set default confidence
       if (!result.confidence) {

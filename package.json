@@ -6,7 +6,15 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "ollama:start": "bash scripts/start-ollama.sh",
+    "ollama:check": "node scripts/check-ollama.js",
+    "ollama:pull": "ollama pull llama3.1:8b",
+    "dev:full": "concurrently --kill-others-on-fail --prefix-colors \"cyan,magenta,green\" --names \"OLLAMA,BACKEND,HEALTH\" \"npm run ollama:start\" \"npm run dev:backend\" \"npm run health:check\"",
+    "dev:backend": "sleep 3 && tsx watch src/index.ts",
+    "health:check": "node scripts/health-check.js",
+    "setup": "npm run ollama:pull && npm run dev:full",
+    "verify": "node scripts/pre-start.js"
   },
   "keywords": [
     "bom",
@@ -35,6 +43,7 @@
     "@types/multer": "^1.4.11",
     "@types/node": "^20.10.5",
     "@types/papaparse": "^5.3.12",
+    "concurrently": "^9.2.1",
     "nodemon": "^3.0.2",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"

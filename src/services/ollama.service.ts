@@ -74,10 +74,10 @@ class OllamaService {
       const prompt = this.buildConversionPrompt(ebomItems);
       
       const response = await axios.post(
-        `${this.baseUrl}/api/chat`,
+        `${this.baseUrl}/api/generate`,
         {
           model: this.model,
-          messages: [{ role: 'user', content: prompt }],
+          prompt: prompt,
           stream: false,
           format: 'json',
           options: {
@@ -91,14 +91,14 @@ class OllamaService {
         }
       );
 
-      if (!response.data || !response.data.message || !response.data.message.content) {
+      if (!response.data || !response.data.response) {
         throw new Error('Empty response from Ollama');
       }
 
       console.log('📄 Received response from Ollama');
 
       // Parse JSON response
-      const result: ConversionResult = JSON.parse(response.data.message.content);
+      const result: ConversionResult = JSON.parse(response.data.response);
 
       // Validate response structure
       if (!result.mbomItems || !Array.isArray(result.mbomItems)) {
