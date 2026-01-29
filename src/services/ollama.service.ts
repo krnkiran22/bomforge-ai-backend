@@ -39,7 +39,7 @@ class OllamaService {
 
   constructor() {
     this.baseUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
-    this.model = process.env.OLLAMA_MODEL || 'llama3.1:13b';
+    this.model = process.env.OLLAMA_MODEL || 'llama3.1:8b';
     
     console.log('✅ Ollama service initialized');
     console.log(`📍 Ollama URL: ${this.baseUrl}`);

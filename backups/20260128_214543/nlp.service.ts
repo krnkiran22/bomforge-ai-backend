@@ -16,7 +16,7 @@ class NLPService {
 
   constructor() {
     this.ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
-    this.model = process.env.OLLAMA_MODEL || 'llama3.1:13b';
+    this.model = process.env.OLLAMA_MODEL || 'llama3.1:8b';
   }
 
   /**
@@ -61,7 +61,7 @@ Respond ONLY with valid JSON in this exact format:
           }
         },
         {
-          timeout: 30000, // 30 seconds
+          timeout: 120000, // 120 seconds (Ollama can be slow)
           headers: {
             'Content-Type': 'application/json'
           }

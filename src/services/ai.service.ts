@@ -1,6 +1,7 @@
 import groqService from './groq.service';
 import ollamaService from './ollama.service';
 import chunkingService from './chunking.service';
+import ultraFastMultiModelService from './ultra-fast-multi-model.service';
 
 interface BOMItem {
   partNumber: string;
@@ -54,6 +55,13 @@ class AIService {
     await this.initialize();
 
     console.log(`\n🎯 Starting AI conversion for ${ebomItems.length} items`);
+
+    // If ultra-fast multi-model enabled and Ollama available, use it
+    const useOptimized = process.env.USE_MULTI_MODEL === 'true';
+    if (useOptimized && this.ollamaAvailable) {
+      console.log('⚡ Using ULTRA-FAST multi-model processing');
+      return await ultraFastMultiModelService.convertWithMultiModel(ebomItems);
+    }
 
     // Get recommendation
     const strategy = chunkingService.recommendStrategy(ebomItems);
