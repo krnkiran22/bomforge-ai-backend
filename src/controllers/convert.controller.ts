@@ -106,9 +106,9 @@ async function processConversion(conversionId: string, ebomItems: any[]) {
     // OPTION 1: Use Multi-Model Architecture (5 specialized AI models)
     // Uncomment this to use the advanced 5-model system with Ollama
     const useMultiModel = process.env.USE_MULTI_MODEL === 'true';
-    
+
     let conversionResult;
-    
+
     if (useMultiModel) {
       logger.info('🚀 Using Multi-Model AI (5 specialized models)');
       conversionResult = await multiModelService.convertWithMultiModel(ebomItems);
@@ -308,7 +308,7 @@ export const getExplanation = async (req: Request, res: Response) => {
 export const saveBOMEdits = async (req: Request, res: Response) => {
   try {
     const { conversionId } = req.params;
-    const { changes } = req.body;
+    const { changes, mbomItems: newItems } = req.body;
 
     const conversion = await databaseService.getConversion(conversionId);
     if (!conversion) {
@@ -318,29 +318,48 @@ export const saveBOMEdits = async (req: Request, res: Response) => {
       });
     }
 
-    // Apply changes to mBOM data
-    const mbomData = conversion.mbomData as any;
-    const items = mbomData.items || [];
+    const mbomData = (conversion.mbomData as any) || { items: [] };
+    let items = mbomData.items || [];
 
-    changes.forEach((change: any) => {
-      const item = items.find((i: any) => i.id === change.itemId);
-      if (item) {
-        Object.assign(item, change.updates);
-      }
-    });
+    if (newItems && Array.isArray(newItems)) {
+      // Direct replacement of items (good for add/delete/reorder)
+      items = newItems;
+    } else if (changes && Array.isArray(changes)) {
+      // Partial updates by ID
+      changes.forEach((change: any) => {
+        // Try finding by id or partNumber (for flexibility)
+        const item = items.find((i: any) => (i.id === change.itemId) || (i.partNumber === change.partNumber));
+        if (item) {
+          Object.assign(item, change.updates);
+        }
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Either changes or mbomItems must be provided',
+      });
+    }
 
     // Update database
     await databaseService.updateConversion(conversionId, {
-      mbomData: { ...mbomData, items },
+      mbomData: {
+        ...mbomData,
+        items,
+        totalParts: items.length,
+        addedItems: items.filter((i: any) => i.changeType === 'added').length,
+        modifiedItems: items.filter((i: any) => i.changeType === 'modified').length,
+        groupedItems: items.filter((i: any) => i.changeType === 'grouped').length,
+      },
+      mbomPartCount: items.length
     });
 
-    logger.info(`Saved ${changes.length} edits for conversion ${conversionId}`);
+    logger.info(`Saved edits for conversion ${conversionId}`);
 
     return res.status(200).json({
       success: true,
       message: 'Changes saved successfully',
       data: {
-        updatedItems: changes.length,
+        updatedItems: items.length,
       },
     });
   } catch (error: any) {
@@ -395,7 +414,7 @@ export const submitFeedback = async (req: Request, res: Response) => {
 export const getLearningStats = async (_req: Request, res: Response) => {
   try {
     const stats = await learningService.getLearningStats();
-    
+
     return res.status(200).json({
       success: true,
       data: stats
@@ -416,7 +435,7 @@ export const getMultiModelStatus = async (_req: Request, res: Response) => {
   try {
     const status = await multiModelService.getModelStatus();
     const knowledgeStats = await knowledgeService.getLearningStats();
-    
+
     return res.status(200).json({
       success: true,
       data: {
@@ -440,9 +459,9 @@ export const getMultiModelStatus = async (_req: Request, res: Response) => {
 export const triggerRetraining = async (_req: Request, res: Response) => {
   try {
     logger.info('Manual retraining triggered');
-    
+
     const result = await learningService.performBatchRetraining();
-    
+
     return res.status(200).json({
       success: true,
       message: 'Retraining complete',
