@@ -11,6 +11,7 @@ import historyRoutes from './routes/history.routes';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import logger from './utils/logger';
 import knowledgeService from './services/knowledge.service';
+import { betaAccessMiddleware } from './middleware/auth.middleware';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
@@ -29,10 +30,10 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Health check endpoint
+// Health check endpoint (always accessible)
 app.get('/health', (_req, res) => {
   const dbStatus = Database.getConnectionStatus();
-  
+
   res.status(dbStatus ? 200 : 503).json({
     success: true,
     message: 'BOMForge AI Backend is running',
@@ -41,6 +42,9 @@ app.get('/health', (_req, res) => {
     service: 'BOMForge AI Backend'
   });
 });
+
+// Beta Access Control
+app.use(betaAccessMiddleware);
 
 // API Routes
 app.use('/api/upload', uploadRoutes);
@@ -56,31 +60,31 @@ const startServer = async () => {
   try {
     // Connect to MongoDB
     await Database.connect();
-    
+
     // Seed initial knowledge base if enabled
     if (process.env.SEED_KNOWLEDGE === 'true') {
       logger.info('🌱 Seeding knowledge base...');
       await knowledgeService.seedInitialKnowledge();
     }
-    
+
     // Start Express server
     app.listen(PORT, () => {
       logger.info(`🚀 BOMForge AI Backend running on port ${PORT}`);
       logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`🔗 API: http://localhost:${PORT}`);
       logger.info(`📊 Health check: http://localhost:${PORT}/health`);
-      
+
       // Multi-Model Status
       if (process.env.USE_MULTI_MODEL === 'true') {
         logger.info('🤖 Multi-Model AI: ENABLED (5 specialized models)');
       } else {
         logger.info('🤖 Multi-Model AI: DISABLED (using single model)');
       }
-      
+
       if (!process.env.GROQ_API_KEY) {
         logger.warn('⚠️  GROQ_API_KEY not configured. AI features will not work.');
       }
-      
+
       if (!process.env.MONGODB_URI) {
         logger.warn('⚠️  MONGODB_URI not configured. Using default: mongodb://localhost:27017/bomforge');
       }
