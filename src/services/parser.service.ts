@@ -2,14 +2,26 @@ import * as XLSX from 'xlsx';
 import * as Papa from 'papaparse';
 import * as fs from 'fs';
 import { BOMItem } from '../types';
+import logger from '../utils/logger';
 
 class ParserService {
   async parseExcel(filePath: string): Promise<BOMItem[]> {
     try {
       const workbook = XLSX.readFile(filePath);
-      const sheetName = workbook.SheetNames[0];
+
+      // Smart Sheet Selection: Find sheet with "BOM" or "eBOM" in name, default to first sheet
+      let sheetName = workbook.SheetNames.find(name =>
+        name.toLowerCase().includes('bom') ||
+        name.toLowerCase().includes('ebom')
+      );
+
+      if (!sheetName) {
+        sheetName = workbook.SheetNames[0];
+      }
+
+      logger.info(`Processing Excel sheet: ${sheetName}`);
       const worksheet = workbook.Sheets[sheetName];
-      
+
       // Convert to JSON
       const data: any[] = XLSX.utils.sheet_to_json(worksheet);
 
@@ -30,26 +42,27 @@ class ParserService {
         };
 
         const partNumber = getColumnValue([
-          'Part Number', 'PartNumber', 'Part No', 'PartNo', 
-          'Part #', 'Item Number', 'Item No', 'part_number'
+          'Part Number', 'Part No', 'Part#', 'PartNumber', 'Part No.', 'Item Number', 'PartNo', 'Item No', 'part_number'
         ]) || `PART-${index + 1}`;
 
         const description = getColumnValue([
-          'Description', 'Part Description', 'Item Description',
-          'Part Name', 'Name', 'description', 'part_description'
+          'Description', 'Desc', 'Part Description', 'Item Description', 'Part Name', 'Name', 'description', 'part_description'
         ]) || 'Unnamed Part';
 
         const quantityStr = getColumnValue([
-          'Quantity', 'Qty', 'QTY', 'Quan', 'Amount', 'quantity', 'qty'
+          'Quantity', 'Qty', 'QTY', 'Required Qty', 'Req Qty', 'Amount', 'Quan', 'quantity', 'qty'
         ]) || '1';
 
         const levelStr = getColumnValue([
-          'Level', 'BOM Level', 'Hierarchy', 'Indent', 'level', 'bom_level'
+          'Level', 'BOM Level', 'Lvl', 'Hierarchy Level', 'Hierarchy', 'Indent', 'level', 'bom_level'
         ]) || '0';
 
         const materialSpec = getColumnValue([
-          'Material', 'Material Specification', 'Material Spec',
-          'Mat Spec', 'material', 'material_spec'
+          'Material', 'Material Spec', 'Mat Spec', 'Material Type', 'Material Specification', 'material', 'material_spec'
+        ]);
+
+        const workCenter = getColumnValue([
+          'Work Center', 'WorkCenter', 'WC', 'Work Centre', 'work_center'
         ]);
 
         const notes = getColumnValue([
@@ -63,6 +76,7 @@ class ParserService {
           quantity: parseInt(quantityStr) || 1,
           level: parseInt(levelStr) || 0,
           materialSpec: materialSpec?.trim(),
+          workCenter: workCenter?.trim(),
           notes: notes?.trim(),
         };
       });
@@ -76,7 +90,7 @@ class ParserService {
   async parseCSV(filePath: string): Promise<BOMItem[]> {
     try {
       const fileContent = fs.readFileSync(filePath, 'utf-8');
-      
+
       const result = Papa.parse(fileContent, {
         header: true,
         skipEmptyLines: true,
@@ -105,26 +119,27 @@ class ParserService {
         };
 
         const partNumber = getColumnValue([
-          'Part Number', 'PartNumber', 'Part No', 'PartNo', 
-          'Part #', 'Item Number', 'Item No', 'part_number'
+          'Part Number', 'Part No', 'Part#', 'PartNumber', 'Part No.', 'Item Number', 'PartNo', 'Item No', 'part_number'
         ]) || `PART-${index + 1}`;
 
         const description = getColumnValue([
-          'Description', 'Part Description', 'Item Description',
-          'Part Name', 'Name', 'description', 'part_description'
+          'Description', 'Desc', 'Part Description', 'Item Description', 'Part Name', 'Name', 'description', 'part_description'
         ]) || 'Unnamed Part';
 
         const quantityStr = getColumnValue([
-          'Quantity', 'Qty', 'QTY', 'Quan', 'Amount', 'quantity', 'qty'
+          'Quantity', 'Qty', 'QTY', 'Required Qty', 'Req Qty', 'Amount', 'Quan', 'quantity', 'qty'
         ]) || '1';
 
         const levelStr = getColumnValue([
-          'Level', 'BOM Level', 'Hierarchy', 'Indent', 'level', 'bom_level'
+          'Level', 'BOM Level', 'Lvl', 'Hierarchy Level', 'Hierarchy', 'Indent', 'level', 'bom_level'
         ]) || '0';
 
         const materialSpec = getColumnValue([
-          'Material', 'Material Specification', 'Material Spec',
-          'Mat Spec', 'material', 'material_spec'
+          'Material', 'Material Spec', 'Mat Spec', 'Material Type', 'Material Specification', 'material', 'material_spec'
+        ]);
+
+        const workCenter = getColumnValue([
+          'Work Center', 'WorkCenter', 'WC', 'Work Centre', 'work_center'
         ]);
 
         const notes = getColumnValue([
@@ -138,6 +153,7 @@ class ParserService {
           quantity: parseInt(quantityStr) || 1,
           level: parseInt(levelStr) || 0,
           materialSpec: materialSpec?.trim(),
+          workCenter: workCenter?.trim(),
           notes: notes?.trim(),
         };
       });
@@ -213,7 +229,7 @@ class ParserService {
     // Second pass: build hierarchy
     items.forEach((item, index) => {
       const currentItem = itemMap.get(item.id!)!;
-      
+
       if (item.level === 0) {
         rootItems.push(currentItem);
       } else {

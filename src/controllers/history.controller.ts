@@ -11,11 +11,11 @@ export const getConversionHistory = async (req: Request, res: Response) => {
     const result = await databaseService.getConversionHistory(page, limit, search);
 
     const formattedData = result.conversions.map((conversion: any) => ({
-      conversionId: conversion.id,
-      fileName: conversion.uploadId?.originalName || 'Unknown',
+      conversionId: conversion._id.toString(),
+      filename: conversion.uploadId?.originalName || 'Unknown',
       status: conversion.status,
       ebomPartCount: conversion.ebomPartCount,
-      mbomPartCount: conversion.mbomPartCount || 0,
+      itemsCount: conversion.mbomPartCount || 0,
       confidenceScore: conversion.confidenceScore || 0,
       timeTaken: conversion.timeTaken || 0,
       createdAt: conversion.createdAt,
@@ -23,8 +23,10 @@ export const getConversionHistory = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
-      data: formattedData,
-      pagination: result.pagination,
+      data: {
+        conversions: formattedData,
+        pagination: result.pagination,
+      },
     });
   } catch (error: any) {
     logger.error('Get conversion history error:', error);
