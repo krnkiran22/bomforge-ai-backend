@@ -8,6 +8,7 @@ import Database from './config/database';
 import uploadRoutes from './routes/upload.routes';
 import convertRoutes from './routes/convert.routes';
 import historyRoutes from './routes/history.routes';
+import erpnextRoutes from './routes/erpnext.routes';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import logger from './utils/logger';
 import knowledgeService from './services/knowledge.service';
@@ -17,8 +18,22 @@ const app: Application = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:3000',
+  'http://localhost:3001',
+].filter(Boolean) as string[];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, Railway health checks)
+    if (!origin) return callback(null, true);
+    // Allow any vercel.app subdomain
+    if (origin.endsWith('.vercel.app') || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
 }));
 app.use(express.json());
@@ -50,6 +65,7 @@ app.use(betaAccessMiddleware);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/convert', convertRoutes);
 app.use('/api/history', historyRoutes);
+app.use('/api/erpnext', erpnextRoutes);
 
 // Error handling
 app.use(notFoundHandler);
