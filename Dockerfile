@@ -1,16 +1,15 @@
-# BOMForge AI Backend — Single container with Ollama + Node.js
-# Railway Pro plan required (8GB+ RAM for llama3.1:8b)
+# BOMForge AI Backend — Ollama base image + Node.js
+# Uses official ollama/ollama image (Ollama pre-installed correctly)
 
-FROM node:20-slim
+FROM ollama/ollama:latest
 
-# Install system dependencies + Ollama
+# Install Node.js 20 + build tools
 RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Ollama
-RUN curl -fsSL https://ollama.com/install.sh | sh
 
 WORKDIR /app
 
@@ -18,18 +17,17 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# Copy source and build
+# Copy source and build TypeScript
 COPY . .
 RUN npm run build
 
-# Remove devDependencies after build to keep image lean
+# Remove devDependencies after build
 RUN npm prune --production
 
 # Copy startup script
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
-# Expose backend port
 EXPOSE 3001
 
 CMD ["/start.sh"]
