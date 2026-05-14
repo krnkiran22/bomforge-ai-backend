@@ -113,6 +113,24 @@ const startServer = async () => {
 
 startServer();
 
+// ── Keep-alive self-ping (prevents Railway from sleeping on inactivity) ───────
+const PING_INTERVAL_MS = 14 * 60 * 1000; // every 14 minutes
+const selfUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+  ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/health`
+  : null;
+
+if (selfUrl && process.env.NODE_ENV === 'production') {
+  setInterval(async () => {
+    try {
+      const res = await fetch(selfUrl);
+      logger.info(`🏓 Keep-alive ping → ${res.status} OK`);
+    } catch (e: any) {
+      logger.warn(`⚠️  Keep-alive ping failed: ${e.message}`);
+    }
+  }, PING_INTERVAL_MS);
+  logger.info(`🏓 Keep-alive enabled — pinging ${selfUrl} every 14 minutes`);
+}
+
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully...');
