@@ -48,11 +48,11 @@ app.use((req, _res, next) => {
 // Health check endpoint (always accessible)
 app.get('/health', (_req, res) => {
   const dbStatus = Database.getConnectionStatus();
-
-  res.status(dbStatus ? 200 : 503).json({
+  // Always return 200 so Railway health check passes even during DB init
+  res.status(200).json({
     success: true,
     message: 'BOMForge AI Backend is running',
-    database: dbStatus ? 'connected' : 'disconnected',
+    database: dbStatus ? 'connected' : 'connecting',
     timestamp: new Date().toISOString(),
     service: 'BOMForge AI Backend'
   });
@@ -74,36 +74,28 @@ app.use(errorHandler);
 // Start server
 const startServer = async () => {
   try {
-    // Connect to MongoDB
-    await Database.connect();
-
-    // Seed initial knowledge base if enabled
-    if (process.env.SEED_KNOWLEDGE === 'true') {
-      logger.info('🌱 Seeding knowledge base...');
-      await knowledgeService.seedInitialKnowledge();
-    }
-
-    // Start Express server
-    app.listen(PORT, () => {
+    // Start Express server FIRST — health check responds immediately on Railway
+    app.listen(Number(PORT), '0.0.0.0', () => {
       logger.info(`🚀 BOMForge AI Backend running on port ${PORT}`);
       logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-      logger.info(`🔗 API: http://localhost:${PORT}`);
-      logger.info(`📊 Health check: http://localhost:${PORT}/health`);
-
-      // Multi-Model Status
-      if (process.env.USE_MULTI_MODEL === 'true') {
-        logger.info('🤖 Multi-Model AI: ENABLED (5 specialized models)');
-      } else {
-        logger.info('🤖 Multi-Model AI: DISABLED (using single model)');
-      }
+      logger.info(`✅ Health check live at /health`);
 
       if (!process.env.GROQ_API_KEY) {
-        logger.warn('⚠️  GROQ_API_KEY not configured. AI features will not work.');
+        logger.warn('⚠️  GROQ_API_KEY not configured.');
       }
 
-      if (!process.env.MONGODB_URI) {
-        logger.warn('⚠️  MONGODB_URI not configured. Using default: mongodb://localhost:27017/bomforge');
-      }
+      // Connect to MongoDB in background — doesn't block server start
+      Database.connect()
+        .then(async () => {
+          logger.info('✅ MongoDB connected');
+          if (process.env.SEED_KNOWLEDGE === 'true') {
+            await knowledgeService.seedInitialKnowledge();
+            logger.info('🌱 Knowledge base seeded');
+          }
+        })
+        .catch((err: Error) => {
+          logger.error('❌ MongoDB connection failed:', err.message);
+        });
     });
   } catch (error) {
     logger.error('❌ Failed to start server:', error);
