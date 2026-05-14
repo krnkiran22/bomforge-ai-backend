@@ -5,39 +5,34 @@ echo "======================================"
 echo "  BOMForge AI — Starting Services"
 echo "======================================"
 
-# ── Start Ollama in background ─────────────────────────────
-echo "[1/3] Starting Ollama server..."
+# ── 1. Start Ollama server in background (non-blocking) ────
+echo "[1/2] Starting Ollama in background..."
 ollama serve &
-OLLAMA_PID=$!
 
-# ── Wait for Ollama to be ready ────────────────────────────
-echo "[2/3] Waiting for Ollama to be ready..."
-MAX_WAIT=60
-WAITED=0
-until curl -s http://localhost:11434/api/tags > /dev/null 2>&1; do
-  sleep 2
-  WAITED=$((WAITED + 2))
-  if [ $WAITED -ge $MAX_WAIT ]; then
-    echo "  ⚠️  Ollama took too long — starting backend anyway (will use Groq fallback)"
-    break
-  fi
-done
+# ── 2. Pull model in background after Ollama is ready ──────
+# This does NOT block Node.js startup
+(
+  echo "[BG] Waiting for Ollama to be ready..."
+  MAX=180
+  WAITED=0
+  until curl -s http://localhost:11434/api/tags > /dev/null 2>&1; do
+    sleep 3
+    WAITED=$((WAITED + 3))
+    if [ $WAITED -ge $MAX ]; then
+      echo "[BG] ⚠️  Ollama not ready after ${MAX}s — skipping model pull"
+      exit 0
+    fi
+  done
+  echo "[BG] ✅ Ollama ready"
 
-if curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
-  echo "  ✅ Ollama is ready"
-
-  # Pull model only if not already present (uses Railway volume for persistence)
   if ollama list 2>/dev/null | grep -q "llama3.1:8b"; then
-    echo "  ✅ llama3.1:8b already pulled — skipping download"
+    echo "[BG] ✅ llama3.1:8b already present — skipping download"
   else
-    echo "  📥 Pulling llama3.1:8b model (~4.6 GB, first run only)..."
-    ollama pull llama3.1:8b
-    echo "  ✅ Model ready"
+    echo "[BG] 📥 Pulling llama3.1:8b (~4.6 GB)..."
+    ollama pull llama3.1:8b && echo "[BG] ✅ Model ready" || echo "[BG] ⚠️  Pull failed — will use Groq"
   fi
-else
-  echo "  ⚠️  Ollama not available — backend will use Groq API"
-fi
+) &
 
-# ── Start Node.js backend ──────────────────────────────────
-echo "[3/3] Starting BOMForge backend..."
+# ── 3. Start Node.js backend IMMEDIATELY (health check passes) ─
+echo "[2/2] Starting BOMForge backend..."
 exec node dist/index.js
